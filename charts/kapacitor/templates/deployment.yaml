@@ -1,5 +1,5 @@
-{{- $bl := empty .Values.influxURL }}
-{{- if not $bl }}
+{{- $bl := or (not (empty (.Values.influxURL))) (and .Values.config.enabled .Values.config.influxdb) }}
+{{- if $bl }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,36 +25,41 @@ spec:
         app: {{ template "kapacitor.fullname" . }}
     spec:
       serviceAccountName: {{ template "kapacitor.serviceAccountName" . }}
+      initContainers:
+        - name: {{ .Chart.Name }}-init
+          image: alpine:latest  # Using Alpine for a lightweight image
+          command: ["/bin/sh", "/scripts/clone-git.sh"]  # Executes the shell script
+          env:
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-token  # Secret name
+                  key: token          # Key in the secret that contains the GitHub token
+          volumeMounts:
+            - name: tick-scripts
+              mountPath: /workspace/tick-scripts
+            - name: clone-script
+              mountPath: /scripts  # Mounting the shell script here
+              readOnly: true
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        env:
-        - name: KAPACITOR_HOSTNAME
-          value: {{ template "kapacitor.fullname" . }}.{{ .Release.Namespace }}
-        - name: KAPACITOR_INFLUXDB_0_URLS_0
-          value: {{ .Values.influxURL }}
-        {{- range $key, $val := .Values.envVars }}
-        - name: {{ $key }}
-          value: {{ $val | quote }}
-        {{- end }}
-        {{- if .Values.existingSecret }}
-        - name: KAPACITOR_INFLUXDB_0_USERNAME
-          valueFrom:
-            secretKeyRef:
-              key: influxdb-user
-              name: {{ .Values.existingSecret }}
-        - name: KAPACITOR_INFLUXDB_0_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: influxdb-password
-              name: {{ .Values.existingSecret }}
-        {{- end }}
         ports:
         - containerPort: 9092
         volumeMounts:
         - name: data
           mountPath: /var/lib/kapacitor
+        - name: tick-scripts
+{{- if and .Values.config.enabled .Values.config.load.enabled}}
+          mountPath: {{ .Values.config.load.dir}}
+{{- else}}
+          mountPath: /etc/kapacitor/tick
+{{- end}}
+{{- if .Values.config.enabled}}
+        - name: config
+          mountPath: /etc/kapacitor/
+{{- end}}
 {{- if .Values.sidecar.sideload.enabled }}
         - name: sc-sideload-volume
           mountPath: {{ .Values.sidecar.sideload.folder | quote }}
@@ -101,6 +106,11 @@ spec:
 {{ toYaml .Values.tolerations | indent 8 }}
       {{- end }}
       volumes:
+        - name: tick-scripts
+          emptyDir: {}
+        - name: clone-script
+          configMap:
+            name: init-{{ template "kapacitor.fullname" . }}-config
         - name: data
         {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
@@ -111,5 +121,10 @@ spec:
       {{- if .Values.sidecar.sideload.enabled }}
         - name: sc-sideload-volume
           emptyDir: {}
+      {{- end }}
+      {{- if .Values.config.enabled}}
+        - name: config
+          configMap: 
+            name: {{ template "kapacitor.fullname" . }}-config
       {{- end -}}
 {{- end }}

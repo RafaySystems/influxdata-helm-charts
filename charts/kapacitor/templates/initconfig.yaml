@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-{{ template "kapacitor.fullname" . }}-config
+  namespace: {{ template "kapacitor.namespace" . }}
+data:
+  clone-git.sh: |
+    #!/bin/sh
+
+    # Install necessary tools
+    apk add --no-cache git
+
+    # Clone the repository using the GitHub token for authentication
+    git clone https://$GIT_TOKEN@{{ .Values.tick_repo.repo }} /workspace
+
+    cd /workspace
+    git checkout {{ .Values.tick_repo.branch }}
+    # Copy Tickscript files into the shared volume
+    cp -r /workspace/{{ .Values.tick_repo.path }}/* /workspace/tick-scripts

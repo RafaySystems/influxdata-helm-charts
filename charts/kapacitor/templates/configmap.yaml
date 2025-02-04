@@ -1,0 +1,94 @@
+{{- if .Values.config.enabled}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "kapacitor.fullname" . }}
+  namespace: {{ template "kapacitor.namespace" . }}-config
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    app: {{ template "kapacitor.fullname" . }}
+data:
+  kapacitor.conf: |+
+  {{- if .Values.config.auth}}
+    [auth]
+      {{- range $key, $value := index .Values.config.auth }}
+      {{- $tp := typeOf $value }}
+      {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+      {{- else }}
+      {{ $key }} = {{ $value }}
+      {{- end  }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.config.http}}
+    [http]
+      {{- range $key, $value := index .Values.config.http }}
+      {{- $tp := typeOf $value }}
+      {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+      {{- else }}
+      {{ $key }} = {{ $value }}
+      {{- end  }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.config.tls}}
+    [tls]
+      {{- range $key, $value := index .Values.config.tls }}
+      {{- $tp := typeOf $value }}
+      {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+      {{- else }}
+      {{ $key }} = {{ $value }}
+      {{- end  }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.config.deadman}}
+    [deadman]
+      {{- range $key, $value := index .Values.config.deadman }}
+      {{- $tp := typeOf $value }}
+      {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+      {{- else }}
+      {{ $key }} = {{ $value }}
+      {{- end  }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.config.logging}}
+    [logging]
+      {{- range $key, $value := index .Values.config.logging }}
+      {{- $tp := typeOf $value }}
+      {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+      {{- else }}
+      {{ $key }} = {{ $value }}
+      {{- end  }}
+      {{- end }}
+  {{- end }}
+
+  {{- range $index, $ivalue := .Values.config.influxdb }}
+    [[influxdb]]
+      {{- range $key, $value := $ivalue }}
+        {{- $flag := and (and (ne $key "subscriptions") (ne $key "excluded-subscriptions")) (ne $key "urls")}}
+        {{- if $flag }}
+          {{- $tp := typeOf $value }}
+          {{- if eq $tp "string" }}
+      {{ $key }} = {{ $value | quote }}
+          {{- else }}
+      {{ $key }} = {{ $value }}
+          {{- end  }}
+        {{- else }}
+      urls = [
+        {{- range $value}}
+        {{ . | quote }},
+        {{- end}}
+      ]
+        {{- end}}
+      {{- end }}
+    {{- end }}
+{{- end}}
